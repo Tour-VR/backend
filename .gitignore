@@ -1,0 +1,36 @@
+# Ambientes e segredos locais
+.env
+.env.*
+!.env.example
+_quarentena/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.venv/
+venv/
+
+# Arquivos temporarios
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.orig
+*.rej
+*.zip
+
+# Sistema e editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.vs/

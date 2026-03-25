@@ -1,0 +1,1 @@
+"""Rotas publicas da API."""

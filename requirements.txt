@@ -1,0 +1,13 @@
+# O passlib usado neste MVP trabalha de forma estavel com a serie 4.0 do bcrypt.
+bcrypt==4.0.1
+email-validator==2.3.0
+fastapi==0.135.1
+httpx==0.28.1
+passlib==1.7.4
+python-jose==3.5.0
+pydantic-settings==2.13.1
+pymongo==4.16.0
+pytest==9.0.2
+python-dotenv==1.2.2
+python-multipart==0.0.22
+uvicorn==0.42.0

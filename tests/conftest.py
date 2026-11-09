@@ -18,7 +18,7 @@ def mongo_up(monkeypatch: pytest.MonkeyPatch) -> None:
         self.last_error = None
         return True
 
-    monkeypatch.setattr(MongoManager, "_has_placeholder_credentials", lambda self: False)
+    monkeypatch.setattr(MongoManager, "_has_placeholder_credentials", lambda _self: False)
     monkeypatch.setattr(MongoManager, "ping", fake_ping)
 
 
@@ -31,7 +31,7 @@ def mongo_down(monkeypatch: pytest.MonkeyPatch) -> None:
         self.last_error = "MongoDB indisponivel para teste."
         return False
 
-    monkeypatch.setattr(MongoManager, "_has_placeholder_credentials", lambda self: False)
+    monkeypatch.setattr(MongoManager, "_has_placeholder_credentials", lambda _self: False)
     monkeypatch.setattr(MongoManager, "ping", fake_ping)
 
 

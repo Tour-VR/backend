@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -24,7 +26,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
 async def read_me(
     current_user: dict[str, Any] = Depends(get_current_user),
     service: UserService = Depends(get_user_service),
-):
+) -> dict[str, Any]:
     """Devolve apenas os campos publicos do usuario autenticado."""
 
     return service.serialize_user(current_user)
@@ -35,7 +37,7 @@ async def update_me(
     payload: UserUpdateMe,
     current_user: dict[str, Any] = Depends(get_current_user),
     service: UserService = Depends(get_user_service),
-):
+) -> dict[str, Any]:
     try:
         return await service.update_current_user(current_user, payload)
     except (UserConflictError, UserInputError) as exc:
@@ -57,7 +59,7 @@ async def update_my_password(
     payload: UserChangePassword,
     current_user: dict[str, Any] = Depends(get_current_user),
     service: UserService = Depends(get_user_service),
-):
+) -> dict[str, Any]:
     try:
         return await service.change_current_user_password(current_user, payload)
     except (AuthenticationError, UserInputError) as exc:

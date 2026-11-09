@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from jose import jwt
@@ -11,9 +11,7 @@ from passlib.context import CryptContext
 from app.core.config import settings
 
 PASSWORD_MIN_LENGTH = 8
-PASSWORD_RULE_MESSAGE = (
-    "A senha deve ter pelo menos 8 caracteres e incluir letra e numero."
-)
+PASSWORD_RULE_MESSAGE = "A senha deve ter pelo menos 8 caracteres e incluir letra e numero."
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -51,9 +49,7 @@ def create_access_token(
 ) -> str:
     """Cria um JWT usando as configuracoes carregadas do `.env`."""
 
-    expire = datetime.now(timezone.utc) + timedelta(
-        minutes=settings.access_token_expire_minutes
-    )
+    expire = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
 
     payload: dict[str, Any] = {
         "sub": subject,
@@ -63,18 +59,20 @@ def create_access_token(
     if extra_claims:
         payload.update(extra_claims)
 
-    return jwt.encode(
+    encoded: str = jwt.encode(
         payload,
         settings.jwt_secret_key,
         algorithm=settings.jwt_algorithm,
     )
+    return encoded
 
 
 def decode_access_token(token: str) -> dict[str, Any]:
     """Decodifica o JWT e devolve os dados do usuario autenticado."""
 
-    return jwt.decode(
+    payload: dict[str, Any] = jwt.decode(
         token,
         settings.jwt_secret_key,
         algorithms=[settings.jwt_algorithm],
     )
+    return payload

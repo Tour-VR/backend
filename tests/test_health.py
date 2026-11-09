@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi.testclient import TestClient
 
 from app.core.config import settings
@@ -31,7 +33,7 @@ def test_auth_login_preflight_allows_frontend_origin(monkeypatch) -> None:
     monkeypatch.setattr(
         MongoManager,
         "_has_placeholder_credentials",
-        lambda self: False,
+        lambda _self: False,
     )
     monkeypatch.setattr(MongoManager, "ping", fake_ping)
 
@@ -59,7 +61,7 @@ def test_health_route_reports_database_down(monkeypatch) -> None:
     monkeypatch.setattr(
         MongoManager,
         "_has_placeholder_credentials",
-        lambda self: False,
+        lambda _self: False,
     )
     monkeypatch.setattr(MongoManager, "ping", fake_ping)
 
@@ -88,7 +90,7 @@ def test_health_route_reports_database_up(monkeypatch) -> None:
     monkeypatch.setattr(
         MongoManager,
         "_has_placeholder_credentials",
-        lambda self: False,
+        lambda _self: False,
     )
     monkeypatch.setattr(MongoManager, "ping", fake_ping)
 
@@ -109,8 +111,6 @@ def test_health_route_reports_database_up(monkeypatch) -> None:
 
 
 def test_connect_reports_placeholder_password_without_network() -> None:
-    import asyncio
-
     manager = MongoManager(
         "mongodb+srv://usuario:<db_password>@cluster.mongodb.net/",
         settings.mongodb_db,

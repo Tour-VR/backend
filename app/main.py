@@ -1,5 +1,6 @@
 """Factory da aplicacao FastAPI."""
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -14,7 +15,7 @@ def create_app() -> FastAPI:
     """Cria a aplicacao e registra o ciclo de vida."""
 
     @asynccontextmanager
-    async def lifespan(app: FastAPI):
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         mongo_manager = MongoManager(
             mongodb_url=settings.mongodb_url,
             database_name=settings.mongodb_db,

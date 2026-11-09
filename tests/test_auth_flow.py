@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.core.security import create_access_token, hash_password, verify_password
 from app.repositories.user_repository import UserRepository
@@ -13,11 +13,9 @@ def test_register_success(client, monkeypatch) -> None:
 
     async def fake_find_by_email(self: UserRepository, email: str):
         assert email == "new-user@example.com"
-        return None
 
     async def fake_find_by_username(self: UserRepository, username: str):
         assert username == "newuser"
-        return None
 
     async def fake_create_user(self: UserRepository, user_data: dict):
         captured_user_data.update(user_data)
@@ -115,9 +113,7 @@ def test_login_success_returns_token(client, monkeypatch) -> None:
             "is_active": True,
         }
 
-    monkeypatch.setattr(
-        UserRepository, "find_by_email_or_username", fake_find_by_email_or_username
-    )
+    monkeypatch.setattr(UserRepository, "find_by_email_or_username", fake_find_by_email_or_username)
 
     response = client.post(
         "/auth/login",
@@ -145,9 +141,7 @@ def test_login_accepts_username(client, monkeypatch) -> None:
             "is_active": True,
         }
 
-    monkeypatch.setattr(
-        UserRepository, "find_by_email_or_username", fake_find_by_email_or_username
-    )
+    monkeypatch.setattr(UserRepository, "find_by_email_or_username", fake_find_by_email_or_username)
 
     response = client.post(
         "/auth/login",
@@ -170,9 +164,7 @@ def test_login_invalid_password_returns_401(client, monkeypatch) -> None:
             "is_active": True,
         }
 
-    monkeypatch.setattr(
-        UserRepository, "find_by_email_or_username", fake_find_by_email_or_username
-    )
+    monkeypatch.setattr(UserRepository, "find_by_email_or_username", fake_find_by_email_or_username)
 
     response = client.post(
         "/auth/login",
@@ -195,9 +187,7 @@ def test_login_inactive_user_returns_401(client, monkeypatch) -> None:
             "is_active": False,
         }
 
-    monkeypatch.setattr(
-        UserRepository, "find_by_email_or_username", fake_find_by_email_or_username
-    )
+    monkeypatch.setattr(UserRepository, "find_by_email_or_username", fake_find_by_email_or_username)
 
     response = client.post(
         "/auth/login",
@@ -233,9 +223,7 @@ def test_login_returns_503_when_database_fails(client, monkeypatch) -> None:
     async def fake_find_by_email_or_username(self: UserRepository, email: str):
         raise ConnectionError("Falha ao buscar usuario no MongoDB.")
 
-    monkeypatch.setattr(
-        UserRepository, "find_by_email_or_username", fake_find_by_email_or_username
-    )
+    monkeypatch.setattr(UserRepository, "find_by_email_or_username", fake_find_by_email_or_username)
 
     response = client.post(
         "/auth/login",
@@ -251,7 +239,7 @@ def test_login_returns_503_when_database_fails(client, monkeypatch) -> None:
 
 def test_users_me_success(client, monkeypatch) -> None:
     async def fake_find_by_email(self: UserRepository, email: str):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return {
             "email": email,
             "full_name": "Current User",
@@ -283,7 +271,7 @@ def test_users_me_success(client, monkeypatch) -> None:
 
 
 def test_users_me_update_success(client, monkeypatch) -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     async def fake_find_by_email(self: UserRepository, email: str):
         return {
@@ -340,7 +328,7 @@ def test_users_me_update_success(client, monkeypatch) -> None:
 
 
 def test_users_me_update_duplicate_username_returns_400(client, monkeypatch) -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     async def fake_find_by_email(self: UserRepository, email: str):
         return {
@@ -377,7 +365,7 @@ def test_users_me_change_password_success(client, monkeypatch) -> None:
     updated_hashes: list[str] = []
 
     async def fake_find_by_email(self: UserRepository, email: str):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return {
             "email": email,
             "full_name": "Current User",
@@ -422,7 +410,7 @@ def test_users_me_change_password_with_wrong_current_password_returns_400(
     monkeypatch,
 ) -> None:
     async def fake_find_by_email(self: UserRepository, email: str):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return {
             "email": email,
             "full_name": "Current User",
@@ -470,7 +458,7 @@ def test_users_me_with_invalid_token_returns_401(client) -> None:
 
 def test_users_me_with_inactive_user_returns_403(client, monkeypatch) -> None:
     async def fake_find_by_email(self: UserRepository, email: str):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return {
             "email": email,
             "full_name": "Current User",

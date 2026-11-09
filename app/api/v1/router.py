@@ -1,3 +1,7 @@
+"""Roteador principal da API v1: agrega health, auth e users."""
+
+from __future__ import annotations
+
 from fastapi import APIRouter
 
 from app.api.v1.routes.auth import router as auth_router

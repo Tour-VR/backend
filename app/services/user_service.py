@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from app.core.security import create_access_token, hash_password, verify_password
@@ -57,9 +57,7 @@ class UserService:
             raise UserConflictError("Ja existe um usuario com este email.")
 
         if payload.username:
-            existing_username = await self.user_repository.find_by_username(
-                payload.username
-            )
+            existing_username = await self.user_repository.find_by_username(payload.username)
             if existing_username:
                 raise UserConflictError("Ja existe um usuario com este username.")
 
@@ -112,9 +110,7 @@ class UserService:
         if "username" in payload_data:
             new_username = payload_data["username"]
             if new_username is not None and new_username != current_user.get("username"):
-                existing_username = await self.user_repository.find_by_username(
-                    new_username
-                )
+                existing_username = await self.user_repository.find_by_username(new_username)
                 if (
                     existing_username is not None
                     and existing_username["email"] != current_user["email"]
@@ -126,7 +122,7 @@ class UserService:
         if not update_data:
             raise UserInputError("Nenhum campo valido para atualizacao.")
 
-        update_data["updated_at"] = datetime.now(timezone.utc)
+        update_data["updated_at"] = datetime.now(UTC)
         updated_user = await self.user_repository.update_user_by_email(
             current_user["email"],
             update_data,
@@ -149,7 +145,7 @@ class UserService:
             current_user["email"],
             {
                 "hashed_password": hash_password(payload.new_password),
-                "updated_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(UTC),
             },
         )
 

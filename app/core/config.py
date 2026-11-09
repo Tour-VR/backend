@@ -31,11 +31,7 @@ class Settings(BaseSettings):
     def cors_origins(self) -> list[str]:
         """Converte a string do `.env` em lista para o middleware de CORS."""
 
-        return [
-            origin.strip()
-            for origin in self.app_cors_origins.split(",")
-            if origin.strip()
-        ]
+        return [origin.strip() for origin in self.app_cors_origins.split(",") if origin.strip()]
 
 
 settings = Settings()

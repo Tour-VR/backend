@@ -107,7 +107,7 @@ class UserChangePassword(BaseModel):
         return validate_password_strength(value)
 
     @model_validator(mode="after")
-    def ensure_password_changed(self) -> "UserChangePassword":
+    def ensure_password_changed(self) -> UserChangePassword:
         if self.current_password == self.new_password:
             raise ValueError("A nova senha deve ser diferente da senha atual.")
         return self

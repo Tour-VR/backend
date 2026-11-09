@@ -2,7 +2,7 @@
 
 API REST do TourVR: autenticação de usuários e, nas próximas fases, o conteúdo do tour.
 
-**Stack:** Python 3.11 · FastAPI · Uvicorn · MongoDB (pymongo assíncrono) · JWT · pytest.
+**Stack:** Python 3.11 · FastAPI · Uvicorn · MongoDB (pymongo assíncrono) · JWT · pytest · Ruff · mypy.
 
 ## Como rodar
 
@@ -30,8 +30,15 @@ uvicorn main:app --reload --port 8000
 
 ## Como testar
 
+Com o ambiente virtual ativado, instale as ferramentas de desenvolvimento e rode os quatro
+comandos de verificação (todos precisam terminar sem erro):
+
 ```bash
-pytest -v
+pip install -r requirements-dev.txt
+ruff check .
+ruff format --check .
+mypy app
+pytest --cov=app --cov-fail-under=80
 ```
 
 Os testes usam MongoDB mockado; não precisam de banco rodando.

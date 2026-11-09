@@ -59,18 +59,20 @@ def create_access_token(
     if extra_claims:
         payload.update(extra_claims)
 
-    return jwt.encode(
+    encoded: str = jwt.encode(
         payload,
         settings.jwt_secret_key,
         algorithm=settings.jwt_algorithm,
     )
+    return encoded
 
 
 def decode_access_token(token: str) -> dict[str, Any]:
     """Decodifica o JWT e devolve os dados do usuario autenticado."""
 
-    return jwt.decode(
+    payload: dict[str, Any] = jwt.decode(
         token,
         settings.jwt_secret_key,
         algorithms=[settings.jwt_algorithm],
     )
+    return payload

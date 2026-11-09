@@ -25,13 +25,19 @@ class UserRepository:
 
     async def find_by_email(self, email: str) -> dict[str, Any] | None:
         try:
-            return await self._require_collection().find_one({"email": email})
+            user: dict[str, Any] | None = await self._require_collection().find_one(
+                {"email": email}
+            )
+            return user
         except PyMongoError as exc:
             raise ConnectionError("Falha ao buscar usuario no MongoDB.") from exc
 
     async def find_by_username(self, username: str) -> dict[str, Any] | None:
         try:
-            return await self._require_collection().find_one({"username": username})
+            user: dict[str, Any] | None = await self._require_collection().find_one(
+                {"username": username}
+            )
+            return user
         except PyMongoError as exc:
             raise ConnectionError("Falha ao buscar usuario no MongoDB.") from exc
 
@@ -40,7 +46,7 @@ class UserRepository:
         identifier: str,
     ) -> dict[str, Any] | None:
         try:
-            return await self._require_collection().find_one(
+            user: dict[str, Any] | None = await self._require_collection().find_one(
                 {
                     "$or": [
                         {"email": identifier},
@@ -48,6 +54,7 @@ class UserRepository:
                     ]
                 }
             )
+            return user
         except PyMongoError as exc:
             raise ConnectionError("Falha ao buscar usuario no MongoDB.") from exc
 
@@ -63,10 +70,11 @@ class UserRepository:
         update_data: dict[str, Any],
     ) -> dict[str, Any] | None:
         try:
-            return await self._require_collection().find_one_and_update(
+            user: dict[str, Any] | None = await self._require_collection().find_one_and_update(
                 {"email": email},
                 {"$set": update_data},
                 return_document=ReturnDocument.AFTER,
             )
+            return user
         except PyMongoError as exc:
             raise ConnectionError("Falha ao atualizar usuario no MongoDB.") from exc

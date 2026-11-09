@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import build_database_http_exception, get_user_service
@@ -16,7 +20,7 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 async def register(
     payload: UserCreate,
     service: UserService = Depends(get_user_service),
-):
+) -> dict[str, Any]:
     """Cria um novo usuario mantendo o contrato atual da rota."""
 
     try:
@@ -34,7 +38,7 @@ async def register(
 async def login(
     payload: UserLogin,
     service: UserService = Depends(get_user_service),
-):
+) -> dict[str, Any]:
     """Valida as credenciais e devolve o token Bearer."""
 
     try:

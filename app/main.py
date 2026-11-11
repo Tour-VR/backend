@@ -1,15 +1,20 @@
 """Factory da aplicacao FastAPI."""
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pymongo.errors import PyMongoError
 
 from app.api.v1.router import api_router
 from app.core.config import ensure_secure_settings, settings
 from app.core.database import MongoManager
+from app.core.indexes import ensure_indexes
 from app.core.logging import configure_logging
+
+logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
@@ -26,6 +31,11 @@ def create_app() -> FastAPI:
         )
         app.state.mongo_manager = mongo_manager
         await mongo_manager.connect()
+        if mongo_manager.connected and mongo_manager.database is not None:
+            try:
+                await ensure_indexes(mongo_manager.database)
+            except PyMongoError as exc:
+                logger.warning("Nao foi possivel criar os indices: %s", exc)
         try:
             yield
         finally:

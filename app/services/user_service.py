@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from app.core.roles import ROLE_USER
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models.user import UserModel
 from app.repositories.errors import UniqueConstraintError
@@ -49,7 +50,7 @@ class UserService:
             "email": user_data["email"],
             "username": user_data.get("username"),
             "full_name": user_data.get("full_name"),
-            "role": user_data.get("role", "user"),
+            "role": user_data.get("role", ROLE_USER),
             "is_active": user_data.get("is_active", True),
             "is_verified": user_data.get("is_verified", False),
             "created_at": user_data.get("created_at"),
@@ -71,7 +72,7 @@ class UserService:
             username=payload.username,
             full_name=payload.full_name,
             hashed_password=hash_password(payload.password),
-            role="user",
+            role=ROLE_USER,
             is_active=True,
             is_verified=False,
         )
@@ -98,7 +99,7 @@ class UserService:
 
         token = create_access_token(
             subject=user["email"],
-            extra_claims={"role": user.get("role", "user")},
+            extra_claims={"role": user.get("role", ROLE_USER)},
         )
 
         return {

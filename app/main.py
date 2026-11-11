@@ -1,18 +1,28 @@
 """Factory da aplicacao FastAPI."""
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pymongo.errors import PyMongoError
 
 from app.api.v1.router import api_router
-from app.core.config import settings
+from app.core.config import ensure_secure_settings, settings
 from app.core.database import MongoManager
+from app.core.indexes import ensure_indexes
+from app.core.logging import configure_logging
+from app.core.rate_limit import LoginRateLimiter
+
+logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
     """Cria a aplicacao e registra o ciclo de vida."""
+
+    ensure_secure_settings(settings)
+    configure_logging(settings.log_level)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -22,6 +32,11 @@ def create_app() -> FastAPI:
         )
         app.state.mongo_manager = mongo_manager
         await mongo_manager.connect()
+        if mongo_manager.connected and mongo_manager.database is not None:
+            try:
+                await ensure_indexes(mongo_manager.database)
+            except PyMongoError as exc:
+                logger.warning("Nao foi possivel criar os indices: %s", exc)
         try:
             yield
         finally:
@@ -36,6 +51,11 @@ def create_app() -> FastAPI:
 
     # O frontend roda em outra origem no desenvolvimento, entao liberamos
     # apenas os enderecos configurados para o navegador concluir login e /users/me.
+    application.state.login_rate_limiter = LoginRateLimiter(
+        settings.login_max_failures,
+        settings.login_window_seconds,
+    )
+
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

@@ -2,11 +2,31 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from fastapi.testclient import TestClient
 
+import app.main as app_main
 from app.core.database import MongoManager
 from main import app
+
+
+@pytest.fixture(autouse=True)
+def fake_ensure_indexes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Evita que o lifespan tente criar indices num MongoDB real."""
+
+    async def noop(_database: Any) -> None:
+        return None
+
+    monkeypatch.setattr(app_main, "ensure_indexes", noop)
+
+
+@pytest.fixture(autouse=True)
+def clear_login_rate_limiter() -> None:
+    """Cada teste comeca sem falhas de login registradas."""
+
+    app.state.login_rate_limiter.clear()
 
 
 @pytest.fixture()

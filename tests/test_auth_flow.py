@@ -2,8 +2,12 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from app.core.config import settings
 from app.core.security import create_access_token, hash_password, verify_password
+from app.repositories.errors import UniqueConstraintError
 from app.repositories.user_repository import UserRepository
+
+TOO_MANY_ATTEMPTS = {"detail": "Muitas tentativas. Tente novamente em alguns minutos."}
 
 
 def test_register_success(client, monkeypatch) -> None:
@@ -216,7 +220,7 @@ def test_register_returns_503_when_database_fails(client, monkeypatch) -> None:
     )
 
     assert response.status_code == 503
-    assert "Banco de dados indisponivel." in response.json()["detail"]
+    assert response.json() == {"detail": "Banco de dados indisponivel."}
 
 
 def test_login_returns_503_when_database_fails(client, monkeypatch) -> None:
@@ -234,7 +238,7 @@ def test_login_returns_503_when_database_fails(client, monkeypatch) -> None:
     )
 
     assert response.status_code == 503
-    assert "Banco de dados indisponivel." in response.json()["detail"]
+    assert response.json() == {"detail": "Banco de dados indisponivel."}
 
 
 def test_users_me_success(client, monkeypatch) -> None:
@@ -496,4 +500,120 @@ def test_users_me_returns_503_when_database_fails(client, monkeypatch) -> None:
     )
 
     assert response.status_code == 503
-    assert "Banco de dados indisponivel." in response.json()["detail"]
+    assert response.json() == {"detail": "Banco de dados indisponivel."}
+
+
+def fake_login_user(monkeypatch) -> None:
+    """Usuario com senha `abc12345` para os testes de limite de login."""
+
+    hashed = hash_password("abc12345")
+
+    async def fake_find_by_email_or_username(self: UserRepository, email: str):
+        return {
+            "email": "limit@example.com",
+            "hashed_password": hashed,
+            "role": "user",
+            "is_active": True,
+        }
+
+    monkeypatch.setattr(UserRepository, "find_by_email_or_username", fake_find_by_email_or_username)
+
+
+def post_login(client, password: str):
+    return client.post(
+        "/auth/login",
+        json={"email": "limit@example.com", "password": password},
+    )
+
+
+def test_login_sixth_failed_attempt_returns_429(client, monkeypatch) -> None:
+    fake_login_user(monkeypatch)
+
+    statuses = [post_login(client, "wrong999").status_code for _ in range(5)]
+    sixth = post_login(client, "wrong999")
+
+    assert statuses == [401] * 5
+    assert sixth.status_code == 429
+    assert sixth.json() == TOO_MANY_ATTEMPTS
+
+
+def test_login_success_resets_failures(client, monkeypatch) -> None:
+    fake_login_user(monkeypatch)
+
+    statuses = [post_login(client, "wrong999").status_code for _ in range(4)]
+    success = post_login(client, "abc12345")
+    after_success = post_login(client, "wrong999")
+
+    assert statuses == [401] * 4
+    assert success.status_code == 200
+    assert after_success.status_code == 401
+
+
+def test_register_duplicate_key_returns_400(client, monkeypatch) -> None:
+    async def fake_find_by_email(self: UserRepository, email: str):
+        return None
+
+    async def fake_create_user(self: UserRepository, user_data: dict):
+        raise UniqueConstraintError("email")
+
+    monkeypatch.setattr(UserRepository, "find_by_email", fake_find_by_email)
+    monkeypatch.setattr(UserRepository, "create_user", fake_create_user)
+
+    response = client.post(
+        "/auth/register",
+        json={"email": "race@example.com", "password": "abc12345"},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Ja existe um usuario com este email."}
+
+
+def test_users_me_update_duplicate_key_returns_400(client, monkeypatch) -> None:
+    now = datetime.now(UTC)
+
+    async def fake_find_by_email(self: UserRepository, email: str):
+        return {
+            "email": email,
+            "username": "currentuser",
+            "role": "user",
+            "is_active": True,
+            "hashed_password": hash_password("abc12345"),
+            "created_at": now,
+            "updated_at": now,
+        }
+
+    async def fake_find_by_username(self: UserRepository, username: str):
+        return None
+
+    async def fake_update_user_by_email(self: UserRepository, email: str, update_data: dict):
+        raise UniqueConstraintError("username")
+
+    monkeypatch.setattr(UserRepository, "find_by_email", fake_find_by_email)
+    monkeypatch.setattr(UserRepository, "find_by_username", fake_find_by_username)
+    monkeypatch.setattr(UserRepository, "update_user_by_email", fake_update_user_by_email)
+
+    token = create_access_token("me@example.com", extra_claims={"role": "user"})
+    response = client.put(
+        "/users/me",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"username": "concorrente"},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Ja existe um usuario com este username."}
+
+
+def test_database_error_detail_is_not_exposed(client, monkeypatch) -> None:
+    async def fake_find_by_email_or_username(self: UserRepository, email: str):
+        raise ConnectionError("mongodb://usuario:segredo@host interno caiu")
+
+    monkeypatch.setattr(settings, "app_debug", True)
+    monkeypatch.setattr(UserRepository, "find_by_email_or_username", fake_find_by_email_or_username)
+
+    response = client.post(
+        "/auth/login",
+        json={"email": "db-down@example.com", "password": "abc12345"},
+    )
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Banco de dados indisponivel."}

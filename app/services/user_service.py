@@ -7,6 +7,7 @@ from typing import Any
 
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models.user import UserModel
+from app.repositories.errors import UniqueConstraintError
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import (
     UserChangePassword,
@@ -32,6 +33,10 @@ class UserNotFoundError(ValueError):
     """Erro usado quando o usuario nao e encontrado na camada de negocio."""
 
 
+EMAIL_CONFLICT_MESSAGE = "Ja existe um usuario com este email."
+USERNAME_CONFLICT_MESSAGE = "Ja existe um usuario com este username."
+
+
 class UserService:
     def __init__(self, user_repository: UserRepository) -> None:
         self.user_repository = user_repository
@@ -54,12 +59,12 @@ class UserService:
     async def register_user(self, payload: UserCreate) -> dict[str, Any]:
         existing_email = await self.user_repository.find_by_email(payload.email)
         if existing_email:
-            raise UserConflictError("Ja existe um usuario com este email.")
+            raise UserConflictError(EMAIL_CONFLICT_MESSAGE)
 
         if payload.username:
             existing_username = await self.user_repository.find_by_username(payload.username)
             if existing_username:
-                raise UserConflictError("Ja existe um usuario com este username.")
+                raise UserConflictError(USERNAME_CONFLICT_MESSAGE)
 
         user = UserModel(
             email=payload.email,
@@ -72,7 +77,12 @@ class UserService:
         )
 
         user_document = user.to_mongo()
-        await self.user_repository.create_user(user_document)
+        try:
+            await self.user_repository.create_user(user_document)
+        except UniqueConstraintError as exc:
+            # O indice unico e a garantia contra cadastros simultaneos.
+            message = EMAIL_CONFLICT_MESSAGE if exc.field == "email" else USERNAME_CONFLICT_MESSAGE
+            raise UserConflictError(message) from exc
         return self.serialize_user(user_document)
 
     async def login_user(self, payload: UserLogin) -> dict[str, str]:
@@ -115,7 +125,7 @@ class UserService:
                     existing_username is not None
                     and existing_username["email"] != current_user["email"]
                 ):
-                    raise UserConflictError("Ja existe um usuario com este username.")
+                    raise UserConflictError(USERNAME_CONFLICT_MESSAGE)
 
             update_data["username"] = new_username
 
@@ -123,10 +133,13 @@ class UserService:
             raise UserInputError("Nenhum campo valido para atualizacao.")
 
         update_data["updated_at"] = datetime.now(UTC)
-        updated_user = await self.user_repository.update_user_by_email(
-            current_user["email"],
-            update_data,
-        )
+        try:
+            updated_user = await self.user_repository.update_user_by_email(
+                current_user["email"],
+                update_data,
+            )
+        except UniqueConstraintError as exc:
+            raise UserConflictError(USERNAME_CONFLICT_MESSAGE) from exc
 
         if not updated_user:
             raise UserNotFoundError("Usuario nao encontrado.")

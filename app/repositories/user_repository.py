@@ -5,7 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 from pymongo import ReturnDocument
-from pymongo.errors import PyMongoError
+from pymongo.errors import DuplicateKeyError, PyMongoError
+
+from app.repositories.errors import UniqueConstraintError, duplicated_field
 
 
 class UserRepository:
@@ -61,6 +63,8 @@ class UserRepository:
     async def create_user(self, user_data: dict[str, Any]) -> Any:
         try:
             return await self._require_collection().insert_one(user_data)
+        except DuplicateKeyError as exc:
+            raise UniqueConstraintError(duplicated_field(exc)) from exc
         except PyMongoError as exc:
             raise ConnectionError("Falha ao criar usuario no MongoDB.") from exc
 
@@ -76,5 +80,7 @@ class UserRepository:
                 return_document=ReturnDocument.AFTER,
             )
             return user
+        except DuplicateKeyError as exc:
+            raise UniqueConstraintError(duplicated_field(exc)) from exc
         except PyMongoError as exc:
             raise ConnectionError("Falha ao atualizar usuario no MongoDB.") from exc

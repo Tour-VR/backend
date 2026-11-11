@@ -10,7 +10,7 @@ from app.repositories.user_repository import UserRepository
 TOO_MANY_ATTEMPTS = {"detail": "Muitas tentativas. Tente novamente em alguns minutos."}
 
 
-def test_register_success(client, monkeypatch) -> None:
+def test_register_success(client, monkeypatch, as_admin) -> None:
     """O cadastro deve normalizar email e username antes de salvar."""
 
     captured_user_data: dict = {}
@@ -54,7 +54,7 @@ def test_register_success(client, monkeypatch) -> None:
     assert verify_password("abc12345", captured_user_data["hashed_password"])
 
 
-def test_register_duplicate_email_returns_400(client, monkeypatch) -> None:
+def test_register_duplicate_email_returns_400(client, monkeypatch, as_admin) -> None:
     async def fake_find_by_email(self: UserRepository, email: str):
         return {"email": email}
 
@@ -72,7 +72,7 @@ def test_register_duplicate_email_returns_400(client, monkeypatch) -> None:
     assert response.json() == {"detail": "Ja existe um usuario com este email."}
 
 
-def test_register_duplicate_username_returns_400(client, monkeypatch) -> None:
+def test_register_duplicate_username_returns_400(client, monkeypatch, as_admin) -> None:
     async def fake_find_by_email(self: UserRepository, email: str):
         return None
 
@@ -95,7 +95,7 @@ def test_register_duplicate_username_returns_400(client, monkeypatch) -> None:
     assert response.json() == {"detail": "Ja existe um usuario com este username."}
 
 
-def test_register_invalid_password_returns_422(client) -> None:
+def test_register_invalid_password_returns_422(client, as_admin) -> None:
     response = client.post(
         "/auth/register",
         json={
@@ -205,7 +205,7 @@ def test_login_inactive_user_returns_401(client, monkeypatch) -> None:
     assert response.json() == {"detail": "Credenciais invalidas."}
 
 
-def test_register_returns_503_when_database_fails(client, monkeypatch) -> None:
+def test_register_returns_503_when_database_fails(client, monkeypatch, as_admin) -> None:
     async def fake_find_by_email(self: UserRepository, email: str):
         raise ConnectionError("Falha ao buscar usuario no MongoDB.")
 
@@ -549,7 +549,7 @@ def test_login_success_resets_failures(client, monkeypatch) -> None:
     assert after_success.status_code == 401
 
 
-def test_register_duplicate_key_returns_400(client, monkeypatch) -> None:
+def test_register_duplicate_key_returns_400(client, monkeypatch, as_admin) -> None:
     async def fake_find_by_email(self: UserRepository, email: str):
         return None
 
@@ -617,3 +617,85 @@ def test_database_error_detail_is_not_exposed(client, monkeypatch) -> None:
 
     assert response.status_code == 503
     assert response.json() == {"detail": "Banco de dados indisponivel."}
+
+
+def stored_user(email: str, role: str, *, is_active: bool = True) -> dict:
+    """Documento de usuario como o repository devolveria do banco."""
+
+    now = datetime.now(UTC)
+    return {
+        "email": email,
+        "role": role,
+        "is_active": is_active,
+        "hashed_password": hash_password("abc12345"),
+        "created_at": now,
+        "updated_at": now,
+    }
+
+
+def post_register_with_token(client, token: str):
+    return client.post(
+        "/auth/register",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"email": "novo@example.com", "password": "abc12345"},
+    )
+
+
+def test_register_without_token_returns_401(client) -> None:
+    response = client.post(
+        "/auth/register",
+        json={"email": "novo@example.com", "password": "abc12345"},
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Token nao informado."}
+
+
+def test_register_with_user_role_returns_403(client, monkeypatch) -> None:
+    async def fake_find_by_email(self: UserRepository, email: str):
+        return stored_user(email, "user")
+
+    monkeypatch.setattr(UserRepository, "find_by_email", fake_find_by_email)
+    token = create_access_token("comum@example.com", extra_claims={"role": "user"})
+
+    response = post_register_with_token(client, token)
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Acesso restrito a administradores."}
+
+
+def test_register_with_admin_token_creates_user(client, monkeypatch) -> None:
+    created: list[dict] = []
+
+    async def fake_find_by_email(self: UserRepository, email: str):
+        if email == "chefe@example.com":
+            return stored_user(email, "admin")
+        return None
+
+    async def fake_create_user(self: UserRepository, user_data: dict):
+        created.append(user_data)
+        return {"inserted_id": "fake-id"}
+
+    monkeypatch.setattr(UserRepository, "find_by_email", fake_find_by_email)
+    monkeypatch.setattr(UserRepository, "create_user", fake_create_user)
+    token = create_access_token("chefe@example.com", extra_claims={"role": "admin"})
+
+    response = post_register_with_token(client, token)
+
+    assert response.status_code == 200
+    assert response.json()["email"] == "novo@example.com"
+    assert response.json()["role"] == "user"
+    assert created[0]["email"] == "novo@example.com"
+
+
+def test_register_with_inactive_admin_returns_403(client, monkeypatch) -> None:
+    async def fake_find_by_email(self: UserRepository, email: str):
+        return stored_user(email, "admin", is_active=False)
+
+    monkeypatch.setattr(UserRepository, "find_by_email", fake_find_by_email)
+    token = create_access_token("chefe@example.com", extra_claims={"role": "admin"})
+
+    response = post_register_with_token(client, token)
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Usuario inativo."}

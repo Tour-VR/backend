@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from app.core.roles import ROLE_ADMIN, ROLE_USER
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models.user import UserModel
 from app.repositories.errors import UniqueConstraintError
@@ -49,7 +50,7 @@ class UserService:
             "email": user_data["email"],
             "username": user_data.get("username"),
             "full_name": user_data.get("full_name"),
-            "role": user_data.get("role", "user"),
+            "role": user_data.get("role", ROLE_USER),
             "is_active": user_data.get("is_active", True),
             "is_verified": user_data.get("is_verified", False),
             "created_at": user_data.get("created_at"),
@@ -66,24 +67,51 @@ class UserService:
             if existing_username:
                 raise UserConflictError(USERNAME_CONFLICT_MESSAGE)
 
+        user_document = self._build_user_document(payload, ROLE_USER)
+        await self._insert_user(user_document)
+        return self.serialize_user(user_document)
+
+    async def create_or_promote_admin(self, payload: UserCreate) -> tuple[dict[str, Any], bool]:
+        """Cria um admin ou promove um usuario existente. Retorna (usuario, criado)."""
+
+        existing_user = await self.user_repository.find_by_email(payload.email)
+        if existing_user:
+            # A senha do usuario existente e preservada: promover nao redefine credenciais.
+            updated_user = await self.user_repository.update_user_by_email(
+                payload.email,
+                {"role": ROLE_ADMIN, "is_active": True, "updated_at": datetime.now(UTC)},
+            )
+            if not updated_user:
+                raise UserNotFoundError("Usuario nao encontrado.")
+            return self.serialize_user(updated_user), False
+
+        user_document = self._build_user_document(payload, ROLE_ADMIN)
+        await self._insert_user(user_document)
+        return self.serialize_user(user_document), True
+
+    def _build_user_document(self, payload: UserCreate, role: str) -> dict[str, Any]:
+        """Monta o documento de um usuario novo com a senha ja convertida em hash."""
+
         user = UserModel(
             email=payload.email,
             username=payload.username,
             full_name=payload.full_name,
             hashed_password=hash_password(payload.password),
-            role="user",
+            role=role,
             is_active=True,
             is_verified=False,
         )
+        return user.to_mongo()
 
-        user_document = user.to_mongo()
+    async def _insert_user(self, user_document: dict[str, Any]) -> None:
+        """Grava o usuario traduzindo violacao de indice unico em conflito de negocio."""
+
         try:
             await self.user_repository.create_user(user_document)
         except UniqueConstraintError as exc:
             # O indice unico e a garantia contra cadastros simultaneos.
             message = EMAIL_CONFLICT_MESSAGE if exc.field == "email" else USERNAME_CONFLICT_MESSAGE
             raise UserConflictError(message) from exc
-        return self.serialize_user(user_document)
 
     async def login_user(self, payload: UserLogin) -> dict[str, str]:
         user = await self.user_repository.find_by_email_or_username(payload.email)
@@ -98,7 +126,7 @@ class UserService:
 
         token = create_access_token(
             subject=user["email"],
-            extra_claims={"role": user.get("role", "user")},
+            extra_claims={"role": user.get("role", ROLE_USER)},
         )
 
         return {

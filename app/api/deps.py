@@ -8,6 +8,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 
 from app.core.rate_limit import LoginRateLimiter
+from app.core.roles import ROLE_ADMIN
 from app.core.security import decode_access_token
 from app.repositories.user_repository import UserRepository
 from app.services.user_service import UserService
@@ -89,3 +90,16 @@ async def get_current_user(
         )
 
     return user
+
+
+async def require_admin(
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Libera a rota apenas para usuarios com papel admin."""
+
+    if current_user.get("role") != ROLE_ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso restrito a administradores.",
+        )
+    return current_user

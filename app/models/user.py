@@ -6,6 +6,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
+from app.core.roles import ROLE_USER
+
 
 @dataclass(slots=True)
 class UserModel:
@@ -13,7 +15,7 @@ class UserModel:
     hashed_password: str
     username: str | None = None
     full_name: str | None = None
-    role: str = "user"
+    role: str = ROLE_USER
     is_active: bool = True
     is_verified: bool = False
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))

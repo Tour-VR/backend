@@ -7,6 +7,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
+from app.core.roles import ROLE_USER
 from app.core.security import validate_password_strength
 
 USERNAME_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9._-]{1,28}[a-z0-9])?$")
@@ -67,7 +68,7 @@ class UserResponse(BaseModel):
     email: EmailStr
     username: str | None = None
     full_name: str | None = None
-    role: str = "user"
+    role: str = ROLE_USER
     is_active: bool = True
     is_verified: bool = False
     created_at: datetime | None = None

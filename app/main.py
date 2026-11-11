@@ -13,6 +13,7 @@ from app.core.config import ensure_secure_settings, settings
 from app.core.database import MongoManager
 from app.core.indexes import ensure_indexes
 from app.core.logging import configure_logging
+from app.core.rate_limit import LoginRateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,11 @@ def create_app() -> FastAPI:
 
     # O frontend roda em outra origem no desenvolvimento, entao liberamos
     # apenas os enderecos configurados para o navegador concluir login e /users/me.
+    application.state.login_rate_limiter = LoginRateLimiter(
+        settings.login_max_failures,
+        settings.login_window_seconds,
+    )
+
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

@@ -22,6 +22,13 @@ def fake_ensure_indexes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(app_main, "ensure_indexes", noop)
 
 
+@pytest.fixture(autouse=True)
+def clear_login_rate_limiter() -> None:
+    """Cada teste comeca sem falhas de login registradas."""
+
+    app.state.login_rate_limiter.clear()
+
+
 @pytest.fixture()
 def mongo_up(monkeypatch: pytest.MonkeyPatch) -> None:
     """Simula MongoDB conectado."""

@@ -7,6 +7,7 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 
+from app.core.rate_limit import LoginRateLimiter
 from app.core.security import decode_access_token
 from app.repositories.user_repository import UserRepository
 from app.services.user_service import UserService
@@ -22,6 +23,13 @@ def get_user_service(request: Request) -> UserService:
     database = request.app.state.mongo_manager.database
     repository = UserRepository(database)
     return UserService(repository)
+
+
+def get_login_rate_limiter(request: Request) -> LoginRateLimiter:
+    """Recupera o limitador de tentativas de login salvo no estado da app."""
+
+    limiter: LoginRateLimiter = request.app.state.login_rate_limiter
+    return limiter
 
 
 def build_database_http_exception(exc: Exception) -> HTTPException:

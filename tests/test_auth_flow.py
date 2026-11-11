@@ -10,7 +10,7 @@ from app.repositories.user_repository import UserRepository
 TOO_MANY_ATTEMPTS = {"detail": "Muitas tentativas. Tente novamente em alguns minutos."}
 
 
-def test_register_success(client, monkeypatch) -> None:
+def test_register_success(client, monkeypatch, as_admin) -> None:
     """O cadastro deve normalizar email e username antes de salvar."""
 
     captured_user_data: dict = {}
@@ -54,7 +54,7 @@ def test_register_success(client, monkeypatch) -> None:
     assert verify_password("abc12345", captured_user_data["hashed_password"])
 
 
-def test_register_duplicate_email_returns_400(client, monkeypatch) -> None:
+def test_register_duplicate_email_returns_400(client, monkeypatch, as_admin) -> None:
     async def fake_find_by_email(self: UserRepository, email: str):
         return {"email": email}
 
@@ -72,7 +72,7 @@ def test_register_duplicate_email_returns_400(client, monkeypatch) -> None:
     assert response.json() == {"detail": "Ja existe um usuario com este email."}
 
 
-def test_register_duplicate_username_returns_400(client, monkeypatch) -> None:
+def test_register_duplicate_username_returns_400(client, monkeypatch, as_admin) -> None:
     async def fake_find_by_email(self: UserRepository, email: str):
         return None
 
@@ -95,7 +95,7 @@ def test_register_duplicate_username_returns_400(client, monkeypatch) -> None:
     assert response.json() == {"detail": "Ja existe um usuario com este username."}
 
 
-def test_register_invalid_password_returns_422(client) -> None:
+def test_register_invalid_password_returns_422(client, as_admin) -> None:
     response = client.post(
         "/auth/register",
         json={
@@ -205,7 +205,7 @@ def test_login_inactive_user_returns_401(client, monkeypatch) -> None:
     assert response.json() == {"detail": "Credenciais invalidas."}
 
 
-def test_register_returns_503_when_database_fails(client, monkeypatch) -> None:
+def test_register_returns_503_when_database_fails(client, monkeypatch, as_admin) -> None:
     async def fake_find_by_email(self: UserRepository, email: str):
         raise ConnectionError("Falha ao buscar usuario no MongoDB.")
 
@@ -549,7 +549,7 @@ def test_login_success_resets_failures(client, monkeypatch) -> None:
     assert after_success.status_code == 401
 
 
-def test_register_duplicate_key_returns_400(client, monkeypatch) -> None:
+def test_register_duplicate_key_returns_400(client, monkeypatch, as_admin) -> None:
     async def fake_find_by_email(self: UserRepository, email: str):
         return None
 

@@ -2,14 +2,23 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
 import app.main as app_main
+from app.api.deps import require_admin
 from app.core.database import MongoManager
 from main import app
+
+ADMIN_USER: dict[str, Any] = {
+    "email": "admin@example.com",
+    "hashed_password": "x",
+    "role": "admin",
+    "is_active": True,
+}
 
 
 @pytest.fixture(autouse=True)
@@ -61,3 +70,12 @@ def client(mongo_up: None) -> TestClient:
 
     with TestClient(app) as c:
         yield c
+
+
+@pytest.fixture()
+def as_admin() -> Iterator[dict[str, Any]]:
+    """Faz require_admin aceitar a requisicao sem token."""
+
+    app.dependency_overrides[require_admin] = lambda: ADMIN_USER
+    yield ADMIN_USER
+    app.dependency_overrides.pop(require_admin, None)

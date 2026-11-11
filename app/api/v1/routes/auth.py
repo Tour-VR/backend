@@ -9,6 +9,7 @@ from app.api.deps import (
     build_database_http_exception,
     get_login_rate_limiter,
     get_user_service,
+    require_admin,
 )
 from app.core.rate_limit import LoginRateLimiter
 from app.schemas.user import TokenResponse, UserCreate, UserLogin, UserRegisterResponse
@@ -28,8 +29,9 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 async def register(
     payload: UserCreate,
     service: UserService = Depends(get_user_service),
+    _admin: dict[str, Any] = Depends(require_admin),
 ) -> dict[str, Any]:
-    """Cria um novo usuario mantendo o contrato atual da rota."""
+    """Cria um novo usuario. Exige papel admin."""
 
     try:
         return await service.register_user(payload)

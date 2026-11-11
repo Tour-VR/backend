@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 
-from app.core.config import settings
 from app.core.security import decode_access_token
 from app.repositories.user_repository import UserRepository
 from app.services.user_service import UserService
+
+logger = logging.getLogger(__name__)
 
 security = HTTPBearer(auto_error=False)
 
@@ -25,13 +27,10 @@ def get_user_service(request: Request) -> UserService:
 def build_database_http_exception(exc: Exception) -> HTTPException:
     """Padroniza a resposta 503 quando o MongoDB nao estiver disponivel."""
 
-    detail = "Banco de dados indisponivel."
-    if settings.app_debug:
-        detail = f"{detail} Detalhe: {exc}"
-
+    logger.error("Falha de acesso ao banco: %s", exc)
     return HTTPException(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail=detail,
+        detail="Banco de dados indisponivel.",
     )
 
 

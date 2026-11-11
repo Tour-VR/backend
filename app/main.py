@@ -9,12 +9,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.router import api_router
 from app.core.config import ensure_secure_settings, settings
 from app.core.database import MongoManager
+from app.core.logging import configure_logging
 
 
 def create_app() -> FastAPI:
     """Cria a aplicacao e registra o ciclo de vida."""
 
     ensure_secure_settings(settings)
+    configure_logging(settings.log_level)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:

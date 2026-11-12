@@ -13,6 +13,7 @@ from app.core.security import decode_access_token
 from app.repositories.point_repository import PointRepository
 from app.repositories.user_repository import UserRepository
 from app.repositories.visit_repository import VisitRepository
+from app.services.metrics_service import MetricsService
 from app.services.point_service import PointService
 from app.services.user_service import UserService
 from app.services.visit_service import VisitService
@@ -43,6 +44,13 @@ def get_visit_service(request: Request) -> VisitService:
 
     database = request.app.state.mongo_manager.database
     return VisitService(VisitRepository(database), PointRepository(database))
+
+
+def get_metrics_service(request: Request) -> MetricsService:
+    """Monta o service de metricas usando o banco salvo no estado da app."""
+
+    database = request.app.state.mongo_manager.database
+    return MetricsService(PointRepository(database), VisitRepository(database))
 
 
 def get_login_rate_limiter(request: Request) -> LoginRateLimiter:

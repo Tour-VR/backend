@@ -16,3 +16,5 @@ async def ensure_indexes(database: Any) -> None:
         name="users_username_unique",
         partialFilterExpression={"username": {"$type": "string"}},
     )
+
+    await database["points"].create_index("slug", unique=True, name="points_slug_unique")

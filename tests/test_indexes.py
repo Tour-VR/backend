@@ -71,3 +71,14 @@ def test_lifespan_survives_index_failure(mongo_up: None, monkeypatch: pytest.Mon
 
     assert response.status_code == 200
     assert len(calls) == 1
+
+
+def test_ensure_indexes_creates_visit_indexes() -> None:
+    database = FakeDatabase()
+
+    asyncio.run(ensure_indexes(database))
+
+    assert database["visits"].calls == [
+        ("point_slug", {"name": "visits_point_slug"}),
+        ("visited_at", {"name": "visits_visited_at"}),
+    ]

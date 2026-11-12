@@ -1,9 +1,10 @@
-"""Roteador principal da API v1: agrega health, auth e users."""
+"""Roteador principal da API v1: agrega health, auth, users e pontos."""
 
 from __future__ import annotations
 
 from fastapi import APIRouter
 
+from app.api.v1.routes.admin_points import router as admin_points_router
 from app.api.v1.routes.auth import router as auth_router
 from app.api.v1.routes.health import router as health_router
 from app.api.v1.routes.users import router as users_router
@@ -21,3 +22,6 @@ api_router.include_router(auth_router)
 
 # rotas de usuário, incluindo /users/me
 api_router.include_router(users_router)
+
+# rotas administrativas de pontos de interesse (papel admin)
+api_router.include_router(admin_points_router)

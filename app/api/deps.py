@@ -10,7 +10,9 @@ from jose import JWTError
 from app.core.rate_limit import LoginRateLimiter
 from app.core.roles import ROLE_ADMIN
 from app.core.security import decode_access_token
+from app.repositories.point_repository import PointRepository
 from app.repositories.user_repository import UserRepository
+from app.services.point_service import PointService
 from app.services.user_service import UserService
 
 logger = logging.getLogger(__name__)
@@ -24,6 +26,14 @@ def get_user_service(request: Request) -> UserService:
     database = request.app.state.mongo_manager.database
     repository = UserRepository(database)
     return UserService(repository)
+
+
+def get_point_service(request: Request) -> PointService:
+    """Monta o service de pontos usando o banco salvo no estado da app."""
+
+    database = request.app.state.mongo_manager.database
+    repository = PointRepository(database)
+    return PointService(repository)
 
 
 def get_login_rate_limiter(request: Request) -> LoginRateLimiter:

@@ -47,6 +47,16 @@ def test_ensure_indexes_creates_user_indexes() -> None:
     ]
 
 
+def test_ensure_indexes_creates_point_slug_index() -> None:
+    database = FakeDatabase()
+
+    asyncio.run(ensure_indexes(database))
+
+    assert database["points"].calls == [
+        ("slug", {"unique": True, "name": "points_slug_unique"}),
+    ]
+
+
 def test_lifespan_survives_index_failure(mongo_up: None, monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[Any] = []
 

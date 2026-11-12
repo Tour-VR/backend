@@ -157,3 +157,48 @@ def test_missing_database_raises_connection_error() -> None:
 
     with pytest.raises(ConnectionError):
         asyncio.run(repository.find_by_slug("a"))
+
+
+class CountingCollection:
+    def __init__(self) -> None:
+        self.queries: list[Any] = []
+
+    async def count_documents(self, query: dict[str, Any]) -> int:
+        self.queries.append(query)
+        return 3
+
+    def find(self, query: dict[str, Any], projection: dict[str, int]) -> FakeCursor:
+        self.queries.append((query, projection))
+        return FakeCursor([{"slug": "a", "name": "Ponto A"}])
+
+
+def test_count_points_and_names_by_slugs() -> None:
+    collection = CountingCollection()
+    repository = repository_with(collection)
+
+    assert asyncio.run(repository.count_points()) == 3
+    assert asyncio.run(repository.count_points("published")) == 3
+    assert asyncio.run(repository.find_names_by_slugs(["a", "b"])) == {"a": "Ponto A"}
+    assert asyncio.run(repository.find_names_by_slugs([])) == {}
+
+    assert collection.queries == [
+        {},
+        {"status": "published"},
+        ({"slug": {"$in": ["a", "b"]}}, {"slug": 1, "name": 1}),
+    ]
+
+
+def test_count_and_names_translate_mongo_errors() -> None:
+    class Failing:
+        async def count_documents(self, _query: dict[str, Any]) -> int:
+            raise PyMongoError("falhou")
+
+        def find(self, *_args: Any) -> Any:
+            raise PyMongoError("falhou")
+
+    repository = repository_with(Failing())
+
+    with pytest.raises(ConnectionError):
+        asyncio.run(repository.count_points())
+    with pytest.raises(ConnectionError):
+        asyncio.run(repository.find_names_by_slugs(["a"]))

@@ -18,3 +18,7 @@ async def ensure_indexes(database: Any) -> None:
     )
 
     await database["points"].create_index("slug", unique=True, name="points_slug_unique")
+
+    visits = database["visits"]
+    await visits.create_index("point_slug", name="visits_point_slug")
+    await visits.create_index("visited_at", name="visits_visited_at")

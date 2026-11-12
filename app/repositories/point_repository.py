@@ -56,6 +56,28 @@ class PointRepository:
         query: dict[str, Any] = {} if status is None else {"status": status}
         return await self._find_many(query)
 
+    async def count_points(self, status: str | None = None) -> int:
+        query: dict[str, Any] = {} if status is None else {"status": status}
+        try:
+            total: int = await self._require_collection().count_documents(query)
+            return total
+        except PyMongoError as exc:
+            raise ConnectionError("Falha ao contar pontos no MongoDB.") from exc
+
+    async def find_names_by_slugs(self, slugs: list[str]) -> dict[str, str]:
+        """Devolve `{slug: name}` dos pontos existentes entre os slugs pedidos."""
+
+        if not slugs:
+            return {}
+        try:
+            cursor = self._require_collection().find(
+                {"slug": {"$in": slugs}}, {"slug": 1, "name": 1}
+            )
+            points: list[dict[str, Any]] = await cursor.to_list(length=None)
+        except PyMongoError as exc:
+            raise ConnectionError("Falha ao buscar nomes de pontos no MongoDB.") from exc
+        return {str(point["slug"]): str(point["name"]) for point in points}
+
     async def list_published(self) -> list[dict[str, Any]]:
         return await self._find_many({"status": POINT_STATUS_PUBLISHED})
 

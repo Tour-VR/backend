@@ -1,18 +1,22 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 
+from app.core.config import settings
 from app.core.rate_limit import LoginRateLimiter
 from app.core.roles import ROLE_ADMIN
 from app.core.security import decode_access_token
+from app.repositories.media_storage import MediaStorage
 from app.repositories.point_repository import PointRepository
 from app.repositories.user_repository import UserRepository
 from app.repositories.visit_repository import VisitRepository
+from app.services.media_service import MediaService
 from app.services.metrics_service import MetricsService
 from app.services.point_service import PointService
 from app.services.user_service import UserService
@@ -51,6 +55,12 @@ def get_metrics_service(request: Request) -> MetricsService:
 
     database = request.app.state.mongo_manager.database
     return MetricsService(PointRepository(database), VisitRepository(database))
+
+
+def get_media_service() -> MediaService:
+    """Monta o service de midia com o diretorio e o limite da configuracao."""
+
+    return MediaService(MediaStorage(Path(settings.media_dir)), settings.media_max_bytes)
 
 
 def get_login_rate_limiter(request: Request) -> LoginRateLimiter:

@@ -34,3 +34,6 @@ Thumbs.db
 .idea/
 .vscode/
 .vs/
+
+# Midia enviada pelo painel (fica no volume, nunca no repositorio)
+media/

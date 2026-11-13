@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     login_max_failures: int = 5
     login_window_seconds: int = 900
 
+    # Diretorio onde os arquivos enviados ficam gravados (volume `media-data` no Docker).
+    media_dir: str = "media"
+    media_max_bytes: int = 20 * 1024 * 1024
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

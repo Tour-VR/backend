@@ -3,9 +3,11 @@
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pymongo.errors import PyMongoError
 
 from app.api.v1.router import api_router
@@ -65,6 +67,11 @@ def create_app() -> FastAPI:
     )
 
     application.include_router(api_router)
+
+    # Montado depois das rotas para nao sombrea-las; StaticFiles exige o diretorio existente.
+    media_path = Path(settings.media_dir)
+    media_path.mkdir(parents=True, exist_ok=True)
+    application.mount("/media", StaticFiles(directory=media_path), name="media")
 
     @application.get("/", tags=["Root"])
     async def root() -> dict[str, str]:

@@ -13,3 +13,6 @@ tests/
 .env
 .env.*
 !.env.example
+
+# Midia enviada pelo painel (fica no volume, nunca no repositorio)
+media/

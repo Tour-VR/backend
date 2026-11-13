@@ -1,9 +1,10 @@
-"""Roteador principal da API v1: agrega health, auth, users, pontos e metricas."""
+"""Roteador principal da API v1: agrega health, auth, users, pontos, metricas e midia."""
 
 from __future__ import annotations
 
 from fastapi import APIRouter
 
+from app.api.v1.routes.admin_media import router as admin_media_router
 from app.api.v1.routes.admin_metrics import router as admin_metrics_router
 from app.api.v1.routes.admin_points import router as admin_points_router
 from app.api.v1.routes.auth import router as auth_router
@@ -33,3 +34,6 @@ api_router.include_router(public_points_router)
 
 # rotas administrativas de metricas (papel admin)
 api_router.include_router(admin_metrics_router)
+
+# envio de midia pelo painel (papel admin)
+api_router.include_router(admin_media_router)

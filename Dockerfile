@@ -12,7 +12,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Usuario sem privilegios: o processo nao precisa de root.
-RUN useradd --create-home --uid 1000 appuser && chown -R appuser /app
+# /app/media existe na imagem com dono appuser para o volume media-data herdar o dono.
+RUN useradd --create-home --uid 1000 appuser && mkdir -p /app/media && chown -R appuser /app
 USER appuser
 
 EXPOSE 8000

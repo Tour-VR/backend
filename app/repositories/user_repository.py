@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from bson import ObjectId
 from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError, PyMongoError
 
@@ -82,5 +83,48 @@ class UserRepository:
             return user
         except DuplicateKeyError as exc:
             raise UniqueConstraintError(duplicated_field(exc)) from exc
+        except PyMongoError as exc:
+            raise ConnectionError("Falha ao atualizar usuario no MongoDB.") from exc
+
+    async def list_users(self, skip: int, limit: int) -> list[dict[str, Any]]:
+        try:
+            cursor = self._require_collection().find({}).sort("created_at", -1).skip(skip)
+            users: list[dict[str, Any]] = await cursor.limit(limit).to_list(None)
+            return users
+        except PyMongoError as exc:
+            raise ConnectionError("Falha ao listar usuarios no MongoDB.") from exc
+
+    async def count_users(self) -> int:
+        try:
+            total: int = await self._require_collection().count_documents({})
+            return total
+        except PyMongoError as exc:
+            raise ConnectionError("Falha ao contar usuarios no MongoDB.") from exc
+
+    async def find_by_id(self, user_id: str) -> dict[str, Any] | None:
+        if not ObjectId.is_valid(user_id):
+            return None
+        try:
+            user: dict[str, Any] | None = await self._require_collection().find_one(
+                {"_id": ObjectId(user_id)}
+            )
+            return user
+        except PyMongoError as exc:
+            raise ConnectionError("Falha ao buscar usuario no MongoDB.") from exc
+
+    async def update_user_by_id(
+        self,
+        user_id: str,
+        update_data: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        if not ObjectId.is_valid(user_id):
+            return None
+        try:
+            user: dict[str, Any] | None = await self._require_collection().find_one_and_update(
+                {"_id": ObjectId(user_id)},
+                {"$set": update_data},
+                return_document=ReturnDocument.AFTER,
+            )
+            return user
         except PyMongoError as exc:
             raise ConnectionError("Falha ao atualizar usuario no MongoDB.") from exc

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
@@ -112,6 +113,30 @@ class UserChangePassword(BaseModel):
         if self.current_password == self.new_password:
             raise ValueError("A nova senha deve ser diferente da senha atual.")
         return self
+
+
+class UserAdminResponse(BaseModel):
+    """Usuario como aparece na gestao do painel (sem senha)."""
+
+    id: str
+    email: EmailStr
+    username: str | None
+    full_name: str | None
+    role: str
+    is_active: bool
+    created_at: datetime | None
+
+
+class UserListResponse(BaseModel):
+    items: list[UserAdminResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class UserAdminUpdate(BaseModel):
+    is_active: bool | None = None
+    role: Literal["admin", "user"] | None = None
 
 
 class MessageResponse(BaseModel):

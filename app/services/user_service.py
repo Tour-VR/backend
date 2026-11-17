@@ -11,6 +11,7 @@ from app.models.user import UserModel
 from app.repositories.errors import UniqueConstraintError
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import (
+    UserAdminUpdate,
     UserChangePassword,
     UserCreate,
     UserLogin,
@@ -36,6 +37,13 @@ class UserNotFoundError(ValueError):
 
 EMAIL_CONFLICT_MESSAGE = "Ja existe um usuario com este email."
 USERNAME_CONFLICT_MESSAGE = "Ja existe um usuario com este username."
+USER_NOT_FOUND_MESSAGE = "Usuário não encontrado."
+SELF_LOCKOUT_MESSAGE = "Você não pode remover o próprio acesso de administrador."
+NO_FIELDS_MESSAGE = "Nenhum campo valido para atualizacao."
+PAGINATION_MESSAGE = "Parametros de paginacao invalidos."
+
+DEFAULT_PAGE_SIZE = 20
+MAX_PAGE_SIZE = 100
 
 
 class UserService:
@@ -56,6 +64,60 @@ class UserService:
             "created_at": user_data.get("created_at"),
             "updated_at": user_data.get("updated_at"),
         }
+
+    def serialize_admin_user(self, user_data: dict[str, Any]) -> dict[str, Any]:
+        """Formato usado na gestao de usuarios do painel: inclui o id, nunca a senha."""
+
+        return {
+            "id": str(user_data["_id"]),
+            "email": user_data["email"],
+            "username": user_data.get("username"),
+            "full_name": user_data.get("full_name"),
+            "role": user_data.get("role", ROLE_USER),
+            "is_active": user_data.get("is_active", True),
+            "created_at": user_data.get("created_at"),
+        }
+
+    async def list_users(self, page: int, page_size: int) -> dict[str, Any]:
+        if page < 1 or not 1 <= page_size <= MAX_PAGE_SIZE:
+            raise UserInputError(PAGINATION_MESSAGE)
+
+        users = await self.user_repository.list_users((page - 1) * page_size, page_size)
+        total = await self.user_repository.count_users()
+        return {
+            "items": [self.serialize_admin_user(user) for user in users],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+
+    async def update_user_admin(
+        self,
+        current_user: dict[str, Any],
+        user_id: str,
+        payload: UserAdminUpdate,
+    ) -> dict[str, Any]:
+        update_data: dict[str, Any] = payload.model_dump(exclude_none=True)
+        if not update_data:
+            raise UserInputError(NO_FIELDS_MESSAGE)
+
+        target = await self.user_repository.find_by_id(user_id)
+        if target is None:
+            raise UserNotFoundError(USER_NOT_FOUND_MESSAGE)
+
+        # Autoprotecao: impede que o admin fique sem o proprio acesso.
+        is_self = str(current_user.get("_id")) == user_id
+        removes_access = update_data.get("is_active") is False or (
+            update_data.get("role") == ROLE_USER
+        )
+        if is_self and removes_access:
+            raise UserInputError(SELF_LOCKOUT_MESSAGE)
+
+        update_data["updated_at"] = datetime.now(UTC)
+        updated_user = await self.user_repository.update_user_by_id(user_id, update_data)
+        if updated_user is None:
+            raise UserNotFoundError(USER_NOT_FOUND_MESSAGE)
+        return self.serialize_admin_user(updated_user)
 
     async def register_user(self, payload: UserCreate) -> dict[str, Any]:
         existing_email = await self.user_repository.find_by_email(payload.email)

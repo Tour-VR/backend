@@ -111,3 +111,46 @@ def test_public_points_return_503_when_database_fails(
     response = client.get(path)
 
     assert response.status_code == 503
+
+
+def test_public_detail_with_panorama_and_connections(client, monkeypatch) -> None:
+    received: list[list[str]] = []
+    point = make_point(
+        media=[photo("https://x/1.jpg"), photo("/media/p.jpg", "panorama")],
+        connections=[
+            {"target_slug": "rascunho", "label": "Oculto", "yaw_degrees": 10},
+            {"target_slug": "cantina", "label": "Ir a cantina", "yaw_degrees": 90},
+        ],
+    )
+
+    async def find_published_by_slugs(_self: PointRepository, slugs: list[str]) -> Any:
+        received.append(slugs)
+        return [{"slug": "cantina", "name": "Cantina"}]
+
+    patch_method(monkeypatch, "find_published_by_slug", point)
+    monkeypatch.setattr(PointRepository, "find_published_by_slugs", find_published_by_slugs)
+
+    response = client.get("/public/points/biblioteca-central")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["panorama_url"] == "/media/p.jpg"
+    assert body["connections"] == [
+        {
+            "target_slug": "cantina",
+            "target_name": "Cantina",
+            "label": "Ir a cantina",
+            "yaw_degrees": 90,
+        }
+    ]
+    assert received == [["rascunho", "cantina"]]
+
+
+def test_public_detail_returns_503_when_connection_lookup_fails(client, monkeypatch) -> None:
+    connections = [{"target_slug": "cantina", "label": "Cantina", "yaw_degrees": 0}]
+    patch_method(monkeypatch, "find_published_by_slug", make_point(connections=connections))
+    patch_method(monkeypatch, "find_published_by_slugs", ConnectionError("fora do ar"))
+
+    response = client.get("/public/points/biblioteca-central")
+
+    assert response.status_code == 503

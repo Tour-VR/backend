@@ -9,6 +9,11 @@ Limites do contrato (fonte unica, espelhados pelo painel no plano 012):
 - HISTORY_MAX_LENGTH: texto longo com a historia do lugar.
 - MEDIA_MAX_ITEMS: quantidade maxima de midias embutidas no ponto.
 - MEDIA_URL_MAX_LENGTH, CAPTION_MAX_LENGTH, ALT_TEXT_MAX_LENGTH: limites de cada midia.
+- MAX_PANORAMAS: panoramas 360 por ponto (plano 019; um ponto = uma cena).
+- MAX_CONNECTIONS: conexoes (setas da cena VR) por ponto.
+- CONNECTION_LABEL_MAX_LENGTH: rotulo da seta.
+- YAW_MIN_DEGREES / YAW_MAX_DEGREES: angulo horizontal da seta (0 = centro da foto,
+  positivo = direita).
 """
 
 from __future__ import annotations
@@ -19,6 +24,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.models.point import MediaKind
+
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SLUG_MIN_LENGTH, SLUG_MAX_LENGTH = 3, 60
 NAME_MIN_LENGTH, NAME_MAX_LENGTH = 3, 120
@@ -28,6 +35,11 @@ MEDIA_MAX_ITEMS = 20
 MEDIA_URL_MAX_LENGTH = 500
 CAPTION_MAX_LENGTH = 200
 ALT_TEXT_MAX_LENGTH = 200
+MAX_CONNECTIONS = 8
+MAX_PANORAMAS = 1
+CONNECTION_LABEL_MAX_LENGTH = 60
+YAW_MIN_DEGREES = -180.0
+YAW_MAX_DEGREES = 180.0
 SLUG_RULE_MESSAGE = (
     "Slug deve ter de 3 a 60 caracteres, apenas letras minusculas, numeros e hifens "
     "entre palavras (ex.: biblioteca-central)."
@@ -58,7 +70,7 @@ def _normalize_slug(value: str | None) -> str | None:
 
 class MediaItemInput(BaseModel):
     id: str | None = None
-    kind: Literal["photo"] = "photo"
+    kind: MediaKind = "photo"
     url: str = Field(min_length=1, max_length=MEDIA_URL_MAX_LENGTH)
     caption: str | None = Field(default=None, max_length=CAPTION_MAX_LENGTH)
     alt_text: str = Field(min_length=1, max_length=ALT_TEXT_MAX_LENGTH)
@@ -71,10 +83,28 @@ class MediaItemInput(BaseModel):
 
 class MediaItemResponse(BaseModel):
     id: str
-    kind: str
+    kind: MediaKind
     url: str
     caption: str | None = None
     alt_text: str
+
+
+class PointConnectionSchema(BaseModel):
+    """Conexao para um ponto vizinho; o alvo e validado no service."""
+
+    target_slug: str
+    label: str = Field(min_length=1, max_length=CONNECTION_LABEL_MAX_LENGTH)
+    yaw_degrees: float = Field(ge=YAW_MIN_DEGREES, le=YAW_MAX_DEGREES)
+
+    @field_validator("target_slug")
+    @classmethod
+    def validate_target_slug(cls, value: str) -> str:
+        return str(_normalize_slug(value))
+
+    @field_validator("label", mode="before")
+    @classmethod
+    def strip_text(cls, value: object) -> object:
+        return _strip(value)
 
 
 class PointCreate(BaseModel):
@@ -83,6 +113,9 @@ class PointCreate(BaseModel):
     summary: str = Field(min_length=1, max_length=SUMMARY_MAX_LENGTH)
     history: str = Field(min_length=1, max_length=HISTORY_MAX_LENGTH)
     media: list[MediaItemInput] = Field(default_factory=list, max_length=MEDIA_MAX_ITEMS)
+    connections: list[PointConnectionSchema] = Field(
+        default_factory=list, max_length=MAX_CONNECTIONS
+    )
 
     @field_validator("slug")
     @classmethod
@@ -103,6 +136,9 @@ class PointUpdate(BaseModel):
     summary: str | None = Field(default=None, min_length=1, max_length=SUMMARY_MAX_LENGTH)
     history: str | None = Field(default=None, min_length=1, max_length=HISTORY_MAX_LENGTH)
     media: list[MediaItemInput] | None = Field(default=None, max_length=MEDIA_MAX_ITEMS)
+    connections: list[PointConnectionSchema] | None = Field(
+        default=None, max_length=MAX_CONNECTIONS
+    )
 
     @field_validator("slug")
     @classmethod
@@ -123,6 +159,7 @@ class PointAdminResponse(BaseModel):
     history: str
     status: PointStatus
     media: list[MediaItemResponse]
+    connections: list[PointConnectionSchema]
     created_at: datetime
     updated_at: datetime
     published_at: datetime | None = None
@@ -133,6 +170,16 @@ class PointPublicSummary(BaseModel):
     name: str
     summary: str
     cover_url: str | None = None
+    has_panorama: bool
+
+
+class PointPublicConnection(BaseModel):
+    """Conexao exibida ao visitante; so para alvos publicados."""
+
+    target_slug: str
+    target_name: str
+    label: str
+    yaw_degrees: float
 
 
 class PointPublicDetail(BaseModel):
@@ -141,3 +188,5 @@ class PointPublicDetail(BaseModel):
     summary: str
     history: str
     media: list[MediaItemResponse]
+    panorama_url: str | None
+    connections: list[PointPublicConnection]

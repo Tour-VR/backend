@@ -78,6 +78,56 @@ class PointRepository:
             raise ConnectionError("Falha ao buscar nomes de pontos no MongoDB.") from exc
         return {str(point["slug"]): str(point["name"]) for point in points}
 
+    async def _find_projected(
+        self, query: dict[str, Any], projection: dict[str, int]
+    ) -> list[dict[str, Any]]:
+        try:
+            cursor = self._require_collection().find(query, projection)
+            points: list[dict[str, Any]] = await cursor.to_list(length=None)
+            return points
+        except PyMongoError as exc:
+            raise ConnectionError("Falha ao buscar pontos no MongoDB.") from exc
+
+    async def find_slugs_in(self, slugs: list[str]) -> set[str]:
+        """Devolve, entre os slugs pedidos, os que existem (qualquer status)."""
+
+        if not slugs:
+            return set()
+        points = await self._find_projected({"slug": {"$in": slugs}}, {"slug": 1})
+        return {str(point["slug"]) for point in points}
+
+    async def find_published_by_slugs(self, slugs: list[str]) -> list[dict[str, Any]]:
+        """Devolve `slug` e `name` dos pontos publicados entre os slugs pedidos."""
+
+        if not slugs:
+            return []
+        return await self._find_projected(
+            {"slug": {"$in": slugs}, "status": POINT_STATUS_PUBLISHED},
+            {"slug": 1, "name": 1},
+        )
+
+    async def _update_many(
+        self, query: dict[str, Any], update: dict[str, Any], **kwargs: Any
+    ) -> None:
+        try:
+            await self._require_collection().update_many(query, update, **kwargs)
+        except PyMongoError as exc:
+            raise ConnectionError("Falha ao atualizar conexoes no MongoDB.") from exc
+
+    async def remove_connections_to(self, slug: str) -> None:
+        """Remove de todos os pontos as conexoes que apontam para `slug`."""
+
+        await self._update_many({}, {"$pull": {"connections": {"target_slug": slug}}})
+
+    async def rename_connection_target(self, old_slug: str, new_slug: str) -> None:
+        """Atualiza as conexoes que apontam para `old_slug` para `new_slug`."""
+
+        await self._update_many(
+            {"connections.target_slug": old_slug},
+            {"$set": {"connections.$[conn].target_slug": new_slug}},
+            array_filters=[{"conn.target_slug": old_slug}],
+        )
+
     async def list_published(self) -> list[dict[str, Any]]:
         return await self._find_many({"status": POINT_STATUS_PUBLISHED})
 

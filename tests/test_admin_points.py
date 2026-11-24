@@ -226,17 +226,20 @@ def test_update_slug_after_publication_returns_400(client, monkeypatch, as_admin
 def test_update_slug_while_draft_succeeds(client, monkeypatch, as_admin) -> None:
     stored = make_point()
     captured: dict[str, Any] = {}
+    renamed: list[tuple[str, str]] = []
     patch_repo(
         monkeypatch,
         find_by_id=stored,
         find_by_slug=None,
         update_point=fake_update(stored, captured),
+        rename_connection_target=lambda old, new: renamed.append((old, new)),
     )
 
     response = client.put(f"/admin/points/{stored['_id']}", json={"slug": "biblioteca-nova"})
 
     assert response.status_code == 200
     assert response.json()["slug"] == "biblioteca-nova"
+    assert renamed == [("biblioteca-central", "biblioteca-nova")]
 
 
 def test_update_slug_used_by_other_point_returns_409(client, monkeypatch, as_admin) -> None:
@@ -268,16 +271,24 @@ def test_update_point_removed_meanwhile_returns_404(client, monkeypatch, as_admi
 
 
 def test_delete_point_returns_204(client, monkeypatch, as_admin) -> None:
-    patch_repo(monkeypatch, delete_point=True)
+    removed: list[str] = []
+    patch_repo(
+        monkeypatch,
+        find_by_id=make_point(slug="cantina"),
+        delete_point=True,
+        remove_connections_to=removed.append,
+    )
 
     response = client.delete(f"/admin/points/{ObjectId()}")
 
     assert response.status_code == 204
     assert response.content == b""
+    assert removed == ["cantina"]
 
 
-def test_delete_point_not_found_returns_404(client, monkeypatch, as_admin) -> None:
-    patch_repo(monkeypatch, delete_point=False)
+@pytest.mark.parametrize("found", [None, make_point()])
+def test_delete_point_not_found_returns_404(client, monkeypatch, as_admin, found) -> None:
+    patch_repo(monkeypatch, find_by_id=found, delete_point=False)
 
     response = client.delete(f"/admin/points/{ObjectId()}")
 

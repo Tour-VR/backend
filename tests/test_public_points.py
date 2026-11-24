@@ -56,22 +56,35 @@ def test_public_list_returns_only_summary_fields(client, monkeypatch) -> None:
         "name": "Biblioteca Central",
         "summary": "Onde ficam os livros.",
         "cover_url": "https://x/1.jpg",
+        "has_panorama": False,
     }
     assert body[1]["cover_url"] is None
     assert body[2]["cover_url"] is None
+    assert body[2]["has_panorama"] is True
 
 
 def test_public_detail_success(client, monkeypatch) -> None:
     patch_method(
         monkeypatch, "find_published_by_slug", make_point(media=[photo("https://x/1.jpg")])
     )
+    patch_method(monkeypatch, "find_published_by_slugs", [])
 
     response = client.get("/public/points/biblioteca-central")
 
     assert response.status_code == 200
     body = response.json()
-    assert set(body) == {"slug", "name", "summary", "history", "media"}
+    assert set(body) == {
+        "slug",
+        "name",
+        "summary",
+        "history",
+        "media",
+        "panorama_url",
+        "connections",
+    }
     assert body["media"] == [photo("https://x/1.jpg")]
+    assert body["panorama_url"] is None
+    assert body["connections"] == []
 
 
 def test_public_detail_draft_returns_404(client, monkeypatch) -> None:

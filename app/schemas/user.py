@@ -135,8 +135,29 @@ class UserListResponse(BaseModel):
 
 
 class UserAdminUpdate(BaseModel):
+    """Alteracao feita pelo admin. Campo ausente nao muda; `full_name` e `username`
+    aceitam null (ou texto vazio) para limpar o valor."""
+
     is_active: bool | None = None
     role: Literal["admin", "user"] | None = None
+    email: EmailStr | None = None
+    full_name: str | None = Field(default=None, max_length=120)
+    username: str | None = Field(default=None, max_length=30)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: EmailStr | None) -> str | None:
+        return None if value is None else str(value).strip().lower()
+
+    @field_validator("full_name")
+    @classmethod
+    def normalize_full_name(cls, value: str | None) -> str | None:
+        return _normalize_optional_text(value)
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value: str | None) -> str | None:
+        return _normalize_username(value)
 
 
 class MessageResponse(BaseModel):

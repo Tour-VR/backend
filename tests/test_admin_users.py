@@ -9,6 +9,7 @@ from bson import ObjectId
 
 from app.api.deps import require_admin
 from app.core.security import create_access_token
+from app.repositories.errors import UniqueConstraintError
 from app.repositories.user_repository import UserRepository
 from main import app
 
@@ -234,3 +235,125 @@ def test_patch_returns_503_when_database_fails(client, monkeypatch, as_admin) ->
     response = client.patch(f"{USERS_PATH}/{ObjectId()}", json={"is_active": False})
 
     assert response.status_code == 503
+
+
+EMAIL_CONFLICT = "Ja existe um usuario com este email."
+USERNAME_CONFLICT = "Ja existe um usuario com este username."
+
+
+def test_patch_edits_basic_data_normalized(client, monkeypatch, as_self_admin) -> None:
+    target = make_user()
+    captured: dict[str, Any] = {}
+
+    def update(_user_id: str, update_data: dict[str, Any]) -> dict[str, Any]:
+        captured.update(update_data)
+        return {**target, **update_data}
+
+    patch_repo(
+        monkeypatch,
+        find_by_id=target,
+        find_by_email=None,
+        find_by_username=None,
+        update_user_by_id=update,
+    )
+
+    response = client.patch(
+        f"{USERS_PATH}/{target['_id']}",
+        json={"email": " Ana.Nova@Example.COM ", "full_name": " Ana Lima ", "username": "AnaL"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["email"] == "ana.nova@example.com"
+    assert body["full_name"] == "Ana Lima"
+    assert body["username"] == "anal"
+    assert "is_active" not in captured
+    assert "role" not in captured
+
+
+def test_patch_clears_full_name_and_username(client, monkeypatch, as_admin) -> None:
+    target = make_user()
+    captured: dict[str, Any] = {}
+
+    def update(_user_id: str, update_data: dict[str, Any]) -> dict[str, Any]:
+        captured.update(update_data)
+        return {**target, **update_data}
+
+    patch_repo(monkeypatch, find_by_id=target, update_user_by_id=update)
+
+    response = client.patch(
+        f"{USERS_PATH}/{target['_id']}", json={"full_name": "", "username": None}
+    )
+
+    assert response.status_code == 200
+    assert captured["full_name"] is None
+    assert captured["username"] is None
+
+
+def test_patch_null_email_is_ignored(client, as_admin) -> None:
+    response = client.patch(f"{USERS_PATH}/{ObjectId()}", json={"email": None, "role": None})
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Nenhum campo valido para atualizacao."}
+
+
+def test_patch_same_email_skips_conflict_check(client, monkeypatch, as_admin) -> None:
+    target = make_user()
+    patch_repo(
+        monkeypatch,
+        find_by_id=target,
+        find_by_email=AssertionError("nao deveria buscar"),
+        update_user_by_id=lambda _id, data: {**target, **data},
+    )
+
+    response = client.patch(f"{USERS_PATH}/{target['_id']}", json={"email": target["email"]})
+
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("payload", "lookup", "message"),
+    [
+        ({"email": "bia@example.com"}, "find_by_email", EMAIL_CONFLICT),
+        ({"username": "bia"}, "find_by_username", USERNAME_CONFLICT),
+    ],
+)
+def test_patch_identity_taken_by_other_returns_400(
+    client, monkeypatch, as_admin, payload, lookup, message
+) -> None:
+    target = make_user()
+    patch_repo(monkeypatch, find_by_id=target, **{lookup: make_user(email="bia@example.com")})
+
+    response = client.patch(f"{USERS_PATH}/{target['_id']}", json=payload)
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": message}
+
+
+@pytest.mark.parametrize(
+    ("field", "message"), [("email", EMAIL_CONFLICT), ("username", USERNAME_CONFLICT)]
+)
+def test_patch_unique_index_violation_returns_400(
+    client, monkeypatch, as_admin, field, message
+) -> None:
+    target = make_user()
+    patch_repo(
+        monkeypatch,
+        find_by_id=target,
+        find_by_email=None,
+        find_by_username=None,
+        update_user_by_id=UniqueConstraintError(field),
+    )
+
+    response = client.patch(
+        f"{USERS_PATH}/{target['_id']}", json={"email": "novo@example.com", "username": "novo"}
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": message}
+
+
+def test_patch_invalid_email_returns_422(client, as_admin) -> None:
+    response = client.patch(f"{USERS_PATH}/{ObjectId()}", json={"email": "sem-arroba"})
+
+    assert response.status_code == 422

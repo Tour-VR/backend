@@ -52,7 +52,7 @@ async def update_user(
     current_admin: dict[str, Any] = Depends(require_admin),
     service: UserService = Depends(get_user_service),
 ) -> dict[str, Any]:
-    """Ativa, desativa ou muda o papel de um usuario."""
+    """Edita nome, username e e-mail, ativa, desativa ou muda o papel de um usuario."""
 
     try:
         return await service.update_user_admin(current_admin, user_id, payload)

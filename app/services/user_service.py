@@ -45,6 +45,15 @@ PAGINATION_MESSAGE = "Parametros de paginacao invalidos."
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
 
+# Campos que o admin pode limpar enviando null.
+NULLABLE_ADMIN_FIELDS = frozenset({"full_name", "username"})
+
+
+def _conflict_message(field: str) -> str:
+    """Mensagem amigavel para a violacao de indice unico detectada pelo banco."""
+
+    return USERNAME_CONFLICT_MESSAGE if field == "username" else EMAIL_CONFLICT_MESSAGE
+
 
 class UserService:
     def __init__(self, user_repository: UserRepository) -> None:
@@ -97,13 +106,14 @@ class UserService:
         user_id: str,
         payload: UserAdminUpdate,
     ) -> dict[str, Any]:
-        update_data: dict[str, Any] = payload.model_dump(exclude_none=True)
+        update_data = self._admin_update_data(payload)
         if not update_data:
             raise UserInputError(NO_FIELDS_MESSAGE)
 
         target = await self.user_repository.find_by_id(user_id)
         if target is None:
             raise UserNotFoundError(USER_NOT_FOUND_MESSAGE)
+        await self._ensure_identity_available(target, update_data)
 
         # Autoprotecao: impede que o admin fique sem o proprio acesso.
         is_self = str(current_user.get("_id")) == user_id
@@ -114,10 +124,44 @@ class UserService:
             raise UserInputError(SELF_LOCKOUT_MESSAGE)
 
         update_data["updated_at"] = datetime.now(UTC)
-        updated_user = await self.user_repository.update_user_by_id(user_id, update_data)
+        try:
+            updated_user = await self.user_repository.update_user_by_id(user_id, update_data)
+        except UniqueConstraintError as exc:
+            raise UserConflictError(_conflict_message(exc.field)) from exc
         if updated_user is None:
             raise UserNotFoundError(USER_NOT_FOUND_MESSAGE)
         return self.serialize_admin_user(updated_user)
+
+    @staticmethod
+    def _admin_update_data(payload: UserAdminUpdate) -> dict[str, Any]:
+        """Campos enviados pelo admin. Papel, situacao e e-mail nao aceitam null;
+        nome e username aceitam (limpa o valor)."""
+
+        sent = payload.model_dump(exclude_unset=True)
+        return {
+            field: value
+            for field, value in sent.items()
+            if value is not None or field in NULLABLE_ADMIN_FIELDS
+        }
+
+    async def _ensure_identity_available(
+        self,
+        target: dict[str, Any],
+        update_data: dict[str, Any],
+    ) -> None:
+        """E-mail e username novos nao podem pertencer a outro usuario."""
+
+        lookups = (
+            ("email", self.user_repository.find_by_email, EMAIL_CONFLICT_MESSAGE),
+            ("username", self.user_repository.find_by_username, USERNAME_CONFLICT_MESSAGE),
+        )
+        for field, find, message in lookups:
+            new_value = update_data.get(field)
+            if new_value is None or new_value == target.get(field):
+                continue
+            existing = await find(new_value)
+            if existing is not None and existing.get("_id") != target.get("_id"):
+                raise UserConflictError(message)
 
     async def register_user(self, payload: UserCreate) -> dict[str, Any]:
         existing_email = await self.user_repository.find_by_email(payload.email)

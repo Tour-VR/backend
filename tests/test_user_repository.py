@@ -44,6 +44,15 @@ def test_update_user_translates_duplicate_key() -> None:
     assert exc_info.value.field == "username"
 
 
+def test_update_user_by_id_translates_duplicate_key() -> None:
+    repository = make_repository({"email": 1})
+
+    with pytest.raises(UniqueConstraintError) as exc_info:
+        asyncio.run(repository.update_user_by_id(str(ObjectId()), {"email": "x@example.com"}))
+
+    assert exc_info.value.field == "email"
+
+
 def test_duplicate_without_key_pattern_reports_unknown_field() -> None:
     repository = make_repository({})
 

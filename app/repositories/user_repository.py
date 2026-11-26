@@ -126,5 +126,7 @@ class UserRepository:
                 return_document=ReturnDocument.AFTER,
             )
             return user
+        except DuplicateKeyError as exc:
+            raise UniqueConstraintError(duplicated_field(exc)) from exc
         except PyMongoError as exc:
             raise ConnectionError("Falha ao atualizar usuario no MongoDB.") from exc
